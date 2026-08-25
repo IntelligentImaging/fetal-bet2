@@ -1,0 +1,24 @@
+spatial_dims: "3d"
+model_name: "AttUNet"
+saved_model_path: "../saved_models/AttUNet_3D_imagine/"
+
+in_channels: 1
+out_channels: 2
+img_size: [128, 128, 64]
+voxel_spacing: [1, 1, 1]
+dropout: 0.15
+include_background: False
+
+train_mode:
+  train_data_type: "file"
+  train_data_paths: ['/data/qinqin/FetalBrainMRI_Extraction_Segmentation/dataset_train/train_data.csv']
+
+  augmentation: True
+  fast_training: False
+
+  max_epochs: 500
+  val_interval: 2
+  batch_size: 8
+  optimizer: "Adam"
+  learning_rate: 0.0005
+

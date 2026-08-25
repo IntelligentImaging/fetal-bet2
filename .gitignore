@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+
+# Model weights — distributed via the Docker image (ghcr.io/intelligentimaging/fetal-bet2),
+# not committed here (AttUNet.pth alone exceeds GitHub's 100MB per-file limit).
+Docker/src/models/*.pth
+
+# Local scratch data
+dataset/
+data_test*/

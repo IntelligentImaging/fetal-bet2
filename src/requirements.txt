@@ -1,0 +1,11 @@
+--extra-index-url https://download.pytorch.org/whl/cu113
+torch==1.12.1+cu113
+monai==1.2.0
+numpy==1.23.3
+pandas==1.5.2
+matplotlib==3.6.2
+PyYAML==6.0
+scipy==1.9.1
+scikit-image==0.19.2
+nibabel==4.0.2
+tqdm
