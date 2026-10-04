@@ -1,0 +1,28 @@
+spatial_dims: "3d"
+model_name: "AttUNet"
+saved_model_path: "/data/qinqin/20260818_fetal_BET2/saved_models/AttUNet3D_svr/"
+
+in_channels: 1
+out_channels: 2
+img_size: [128, 128, 128]
+voxel_spacing: [0.8, 0.8, 0.8]
+dropout: 0.15
+include_background: False
+
+train_mode:
+  train_data_type: "file"
+  train_data_paths: ['/data/qinqin/20260818_fetal_BET2/src/dataset_train/train_data_svr.csv']
+  test_data_paths: ['/data/qinqin/20260818_fetal_BET2/src/dataset_train/test_data_svr.csv']
+
+  augmentation: True
+  fast_training: False
+
+  max_epochs: 200
+  val_interval: 5
+  save_interval: 10
+  batch_size: 4
+  optimizer: "Adam"
+  learning_rate: 0.0005
+
+  sw_batch_size: 4
+  sw_overlap: 0.25

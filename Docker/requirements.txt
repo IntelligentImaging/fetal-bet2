@@ -1,5 +1,5 @@
 numpy==1.23.3
 monai==1.2.0
 tqdm==4.64.1
-pyyaml==6.0
+scipy==1.9.1
 nibabel==4.0.2

@@ -9,17 +9,13 @@ from data_generator_imagine import FetalDataLoader
 
 
 def visualize_train_data(cfg_path):
-    # =========================
     # Load config & data
-    # =========================
     config = read_config(cfg_path, mode="train")
 
     fetal_data = FetalDataLoader(config, Train=True)
     train_dataloader = fetal_data.load_data()
 
-    # =========================
     # randomly take one batch
-    # =========================
     batch = next(iter(train_dataloader))
 
     print(batch.keys())
@@ -32,36 +28,24 @@ def visualize_train_data(cfg_path):
 
     indices = random.sample(range(B), 4)
 
-    # =========================
     # plot
-    # =========================
     fig, axes = plt.subplots(2, 4, figsize=(16, 8))
 
     for col, idx in enumerate(indices):
         img = images[idx].cpu().numpy()
         lab = labels[idx].cpu().numpy()
 
-        # -------------------------
-        # process image (2D)
-        # -------------------------
-        # allowed:
         # (C, H, W) or (H, W)
-        if img.ndim == 3:      # (C, H, W)
+        if img.ndim == 3:
             img = img[0]
 
         assert img.ndim == 2, f"Unexpected image shape: {img.shape}"
 
-        # -------------------------
-        # process label (2D)
-        # -------------------------
-        if lab.ndim == 3:      # (C, H, W)
+        if lab.ndim == 3:
             lab = lab[0]
 
         assert lab.ndim == 2, f"Unexpected label shape: {lab.shape}"
 
-        # -------------------------
-        # debug info
-        # -------------------------
         print(f"[IMG] min={img.min():.4f}, max={img.max():.4f}")
 
         img_path = batch["image_meta_dict"]["filename_or_obj"][idx]

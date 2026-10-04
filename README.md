@@ -12,12 +12,15 @@ orientation, image contrast, noise, and acquisition characteristics. The model w
 trained on approximately 1,600 3D volumes and 55,000 2D slices across T2w, dMRI, and
 fMRI.
 
-Fetal-BET2 supports both 2D and 3D inference:
+Fetal-BET2 supports 2D, 3D, and 4D inference:
 - **2D inference** is used for **T2w stacks**, to better accommodate interslice fetal
   motion before reconstruction.
-- **3D inference** is used for **SVR-reconstructed T2w volumes, dMRI, and fMRI**,
-  because of their rapid EPI readout and reduced interslice motion (or, for SVR, because
-  motion has already been corrected during reconstruction).
+- **3D inference** is used for **SVR-reconstructed T2w volumes**, because motion has
+  already been corrected during reconstruction.
+- **4D inference** is used for **dMRI and fMRI time series**: each timepoint/direction
+  is run through the same 3D sliding-window pipeline independently, taking advantage of
+  their rapid EPI readout and correspondingly reduced interslice motion within a volume,
+  then the predicted masks are stacked back into a single 4D output.
 
 ![HASTE and SVR segmentation](./plots/HASTE_SVR_comparison.gif)
 
@@ -39,7 +42,7 @@ Fetal-BET2 supports both 2D and 3D inference:
 ### Requirements
 
 - Python 3.9
-- torch==1.12.1+cu113
+- torch==1.13.1+cu117
 - monai==1.2.0
 - Docker 20.10+ (optional but recommended for inference)
 
@@ -57,8 +60,11 @@ pip install -r src/requirements.txt
 ### Docker
 
 ```bash
-# Pull the Docker image
+# Pull the pre-built image
 docker pull ghcr.io/intelligentimaging/fetal-bet2:latest
+
+# ...or build it yourself from source
+docker build -t fetal-bet2 -f Docker/Dockerfile Docker/
 ```
 
 ## Usage
@@ -67,45 +73,59 @@ docker pull ghcr.io/intelligentimaging/fetal-bet2:latest
 
 ```bash
 cd src
-# --cfg selects the model dimensionality: config_imagine.yml (3D) or config_imagine_2D.yml (2D)
-python train.py --cfg config_imagine.yml
-python train.py --cfg config_imagine_2D.yml
+# --cfg selects the model dimensionality: code/config_imagine.yml (3D) or code/config_imagine_2D.yml (2D)
+python code/train.py --cfg code/config_imagine.yml
+python code/train.py --cfg code/config_imagine_2D.yml
 ```
 
 ### Inference
 
+The simplest way to run inference is the unified entry point: it inspects each input
+file's header and automatically picks the right pipeline (2D for a thick-slice stack
+like a T2w stack, 3D for a near-isotropic volume like an SVR reconstruction, 4D for a
+time/direction series like dMRI/fMRI), so you don't need to know the data type in advance.
+
 ```bash
 cd src
 
-# 2D inference (e.g. T2w stacks)
-python inference_2d.py \
-  --saved_model_path /path/to/AttUNet.pth \
-  --data_path /path/to/input_dir/ \
-  --save_path /path/to/output_dir/
+# single file or a directory (mixed data types in one directory are fine)
+python inference.py --input_path /path/to/input.nii.gz --save_path /path/to/output_dir/
+python inference.py --input_path /path/to/input_dir/   --save_path /path/to/output_dir/
 
-# 3D inference (e.g. SVR-reconstructed T2w, dMRI, fMRI)
-python inference_3d.py \
-  --saved_model_path /path/to/AttUNet3D.pth \
-  --data_path /path/to/input_dir/ \
-  --save_path /path/to/output_dir/
+# force a specific pipeline for 3D data (auto-detection can be overridden either way)
+python inference.py --input_path /path/to/input.nii.gz --save_path /path/to/output_dir/ --pipeline 3d
 ```
 
-Running via Docker:
+`inference.py` arguments:
+
+| Argument | Default | Description |
+|---|---|---|
+| `--input_path` | *(required)* | A single `.nii.gz` file, or a directory of them (each file is routed to its own pipeline; files landing on the same pipeline are batched into one call). |
+| `--save_path` | *(required)* | Directory to save the predicted mask(s) to. |
+| `--pipeline` | `auto` | `auto` picks 2D/3D/4D from the input's header. Can be forced to `2d` or `3d` for 3D data (a modeling choice, not a correctness one); 4D data can only use `4d`. |
+| `--device` | unset | Which device to run on, e.g. `cuda`, `cuda:0`, `cpu`. Leave unset to auto-pick `cuda` if available, else `cpu`. |
+| `--n_gpu` | unset | Number of GPUs to use; `1` (the default) runs on a single device, `>1` wraps the model in `torch.nn.DataParallel` to split each batch across that many GPUs. |
+| `--refine` | unset | Whether to run `mask_refine.py`'s connected-component cleanup on the predicted mask, removing small spatially disconnected mis-segmentation. `1` = on (the default), `0` = save the raw predicted mask instead. |
+| `--amp` | unset | Whether to use mixed-precision (fp16 autocast) inference on CUDA. `1` = on, `0` = off. Only applies to the 2D/3D pipelines (4D has no `--amp`). |
+
+Running via Docker (see [Docker](#docker) above to pull or build the image; substitute
+`fetal-bet2` below for the image name/tag you used if you built it yourself):
 
 ```bash
-docker pull ghcr.io/intelligentimaging/fetal-bet2:latest
-
-docker run --rm \
+docker run --rm --gpus all \
     -v {HOST_DATA_DIR}:/data \
     ghcr.io/intelligentimaging/fetal-bet2:latest \
-    --data_path /data/{INPUT_DIR} \
-    --save_path /data/{OUTPUT_DIR} \
-    --dim {DIM}
+    --input_path /data/{INPUT_PATH} \
+    --save_path /data/{OUTPUT_DIR}
 ```
 
 - `{HOST_DATA_DIR}` — host directory mounted into the container as `/data`; it should
-  contain `{INPUT_DIR}`, and `{OUTPUT_DIR}` will be written inside it.
-- `{DIM}` — `2` for T2w stacks, `3` for dMRI/fMRI.
+  contain `{INPUT_PATH}`, and `{OUTPUT_DIR}` will be written inside it.
+- `{INPUT_PATH}` — a single `.nii.gz` file or a directory of them; the pipeline (2D/3D/4D)
+  is auto-detected from each file's header, or can be forced with `--pipeline {2d,3d,4d}`.
+- The container runs as root, so output mask(s) would normally end up root-owned on the
+  host; `inference.py` chmods just the file(s) it produces to be read/write/delete-able by
+  anyone, so you don't need `sudo` or a `--user` flag to work with them afterwards.
 
 ## Fine-tuning on New Data
 
@@ -139,15 +159,15 @@ To fine-tune on your own data:
 1. Add your new image/mask pairs as `.nii.gz` files into `volume_all`/`volume_all_mask`
    (3D) and/or `slice_all`/`slice_all_mask` (2D).
 2. Append the new pairs to `train_data.csv`/`train_data_slice.csv` — or point
-   `train_data_paths` in `config_imagine.yml`/`config_imagine_2D.yml` at a new CSV of
-   your own, following the same two-column format.
+   `train_data_paths` in `code/config_imagine.yml`/`code/config_imagine_2D.yml` at a new CSV
+   of your own, following the same two-column format.
 3. Run training with `--pretrained` pointing at the released checkpoint, so training
    starts from the Fetal-BET2 weights instead of a random initialization:
 
 ```bash
 cd src
-python train.py --cfg config_imagine.yml    --pretrained ../Docker/src/models/AttUNet3D.pth
-python train.py --cfg config_imagine_2D.yml --pretrained ../Docker/src/models/AttUNet.pth
+python code/train.py --cfg code/config_imagine.yml    --pretrained ../Docker/src/models/AttUNet3D.pth
+python code/train.py --cfg code/config_imagine_2D.yml --pretrained ../Docker/src/models/AttUNet2D.pth
 ```
 
 Note: the CSV `image`/`label` paths must resolve on the machine you train on — update

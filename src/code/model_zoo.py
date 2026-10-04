@@ -56,7 +56,6 @@ def get_network(config):
         strides.insert(0, len(spacings) * [1])
         kernels.append(len(spacings) * [3])
 
-        # initialise the network
         model = monai.networks.nets.DynUNet(
             spatial_dims=spatial_dims,
             in_channels=in_ch,
@@ -65,8 +64,6 @@ def get_network(config):
             strides=strides,
             upsample_kernel_size=strides[1:],
             norm_name="instance",
-            # deep_supervision=True,
-            # deep_supr_num=2,
             dropout=dropout,
             res_block=False,
         )
@@ -104,8 +101,7 @@ def get_network(config):
             hidden_size=768,
             mlp_dim=3072,
             num_heads=12,
-            # pos_embed="perceptron",
-            norm_name='instance',  # "instance",
+            norm_name='instance',
             res_block=False,
             dropout_rate=dropout,
         )
@@ -117,7 +113,6 @@ def get_network(config):
             out_channels=out_ch,
             spatial_dims=spatial_dims,
             feature_size=24,
-            # norm_name='batch',  # "instance",
             drop_rate=dropout,
         )
 
@@ -159,7 +154,6 @@ def get_network(config):
             blocks=(1, 2, 3, 2),
             heads=(1, 2, 4, 4),
             r=(2, 2, 2, 2),
-            # distillation=False,
             dropout=0.15,
         )
     elif model_name == "SlimUNETR":

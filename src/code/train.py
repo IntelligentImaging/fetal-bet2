@@ -47,15 +47,11 @@ def train(args):
     logging.info(str(args))
     logging.info(str(config))
 
-    # =========================
     # Load data (train only)
-    # =========================
     fetal_data = FetalDataLoader(config, Train=True)
     train_dataloader = fetal_data.load_data()
 
-    # =========================
     # Load model
-    # =========================
     model = get_network(config)
     device = args.device
 
@@ -67,9 +63,7 @@ def train(args):
         load_pretrained_weights(model, args.pretrained, device)
         logging.info(f"Loaded pretrained weights from {args.pretrained}")
 
-    # =========================
     # Optimizer
-    # =========================
     if config.optimizer == "SGD":
         optimizer = SGD(
             model.parameters(),
@@ -84,9 +78,7 @@ def train(args):
             weight_decay=1e-4
         )
 
-    # =========================
     # Loss
-    # =========================
     loss_function = DiceCELoss(
         include_background=config.include_background,
         to_onehot_y=True,
@@ -101,11 +93,9 @@ def train(args):
 
     max_epochs = config.max_epochs
     save_interval = 2
-    log_interval = args.log_interval   # print loss every N iterations
+    log_interval = args.log_interval
 
-    # =========================
     # Training loop
-    # =========================
     logging.info("-" * 30 + " training starts " + "-" * 30)
     step_start = time.time()
 
@@ -133,10 +123,8 @@ def train(args):
             loss_val = loss.item()
             epoch_loss += loss_val
 
-            # ===== record loss window =====
             loss_window.append(loss_val)
 
-            # ===== iteration-level logging (window average) =====
             if step % log_interval == 0:
                 avg_loss = sum(loss_window) / len(loss_window)
                 logging.info(
@@ -144,14 +132,12 @@ def train(args):
                     f"| Iter {step}/{num_steps} "
                     f"| avg loss (last {len(loss_window)} iters) = {avg_loss:.6f}"
                 )
-                loss_window.clear()  # clear window
+                loss_window.clear()
 
         epoch_loss /= step
         logging.info(f"Epoch {epoch + 1} average loss: {epoch_loss:.6f}")
 
-        # =========================
         # Save model every save_interval epochs
-        # =========================
         if (epoch + 1) % save_interval == 0:
             save_path = os.path.join(
                 config.saved_model_path,
@@ -160,9 +146,7 @@ def train(args):
             torch.save(model.state_dict(), save_path)
             logging.info(f"Saved model: {save_path}")
 
-    # =========================
     # Save last model
-    # =========================
     save_last_path = os.path.join(
         config.saved_model_path,
         "checkpoint_last.pth"
@@ -196,8 +180,8 @@ if __name__ == '__main__':
         '--pretrained',
         type=str,
         default=None,
-        help='path to a pretrained checkpoint to fine-tune from (e.g. Docker/src/models/AttUNet.pth '
-             'for config_imagine_2D.yml, or AttUNet3D.pth for config_imagine.yml); '
+        help='path to a pretrained checkpoint to fine-tune from (e.g. Docker/src/models/AttUNet2D.pth '
+             'for code/config_imagine_2D.yml, or AttUNet3D.pth for code/config_imagine.yml); '
              'leave unset to train from scratch'
     )
 

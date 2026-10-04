@@ -1,16 +1,11 @@
-import os
-import sys
 from glob import glob
 from pathlib import Path
 
 import numpy as np
 import argparse
+import os
 
 import torch
-
-PROJECT_DIR = Path(__file__).resolve().parent.parent
-CODE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "code")
-sys.path.insert(0, CODE_DIR)
 
 import monai.transforms as tr
 from monai.data import MetaTensor, decollate_batch, Dataset, DataLoader
@@ -20,6 +15,8 @@ from monai.transforms import SaveImaged, MapTransform
 from tqdm import tqdm
 
 from mask_refine import detect_slice_axis, refine_volume
+
+PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
 class RefineMaskd(MapTransform):
@@ -275,7 +272,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--saved_model_path',
                         type=str,
-                        default=str(PROJECT_DIR / "Docker" / "src" / "models" / "AttUNet2D.pth"),
+                        default=str(PROJECT_DIR / "models" / "AttUNet2D.pth"),
                         help='path to the saved model')
 
     parser.add_argument('--data_path',

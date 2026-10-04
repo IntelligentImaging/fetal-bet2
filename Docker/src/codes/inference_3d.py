@@ -1,17 +1,15 @@
 """
-Inference for brain-extraction models trained on the SVR-reconstructed volumes
-(train_svr.py / code/config_inference_3d.yml). Given a directory of .nii.gz volumes, runs
-sliding-window inference with the AttUNet3D architecture and saves predicted brain masks.
+Inference for brain-extraction models trained on the SVR-reconstructed volumes. Given a
+directory of .nii.gz volumes, runs sliding-window inference with the AttUNet3D architecture
+and saves predicted brain masks.
 
 Model architecture, voxel spacing, and sliding-window settings are hardcoded here to match
-the checkpoint this script loads by default (Docker/src/models/AttUNet3D.pth, trained via
-train_svr.py against code/config_inference_3d.yml) - training-only settings in that config
-(data paths, epochs, optimizer, ...) have no bearing on inference and aren't read here.
+the checkpoint this script loads by default (models/AttUNet3D.pth).
 """
 
-import os
-import sys
+from pathlib import Path
 import argparse
+import os
 from glob import glob
 
 import numpy as np
@@ -25,11 +23,9 @@ from monai.networks.nets import AttentionUnet
 from monai.transforms import SaveImaged, MapTransform
 from tqdm import tqdm
 
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CODE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "code")
-sys.path.insert(0, CODE_DIR)
-
 from mask_refine import refine_volume_isotropic
+
+PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 VOXEL_SPACING = (0.8, 0.8, 0.8)
 IMG_SIZE = (128, 128, 128)
@@ -113,12 +109,12 @@ class NiftiVolumeDataset:
         return self.transform({"image": volume})
 
 
-def load_data(data_path, transforms_list, num_workers=4):
+def load_data(data_path, transforms_list, num_workers=0):
     images = sorted(glob(os.path.join(data_path, "*.nii.gz")))
     if not images:
         raise FileNotFoundError(f"No .nii.gz files found under: {data_path}")
 
-    # No point spawning workers to prefetch in parallel if there's only one file.
+    # num_workers=0 by default: avoids Docker's default /dev/shm limit crashing worker IPC.
     num_workers = min(num_workers, max(0, len(images) - 1))
     dataset = NiftiVolumeDataset(images, tr.Compose(transforms_list))
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=num_workers)
@@ -210,9 +206,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--checkpoint', type=str,
-                         default=os.path.join(PROJECT_DIR, "Docker", "src", "models", "AttUNet3D.pth"),
-                         help='path to a trained checkpoint (.pth), e.g. '
-                              'saved_models/AttUNet3D_svr/checkpoint_best.pth')
+                         default=str(PROJECT_DIR / "models" / "AttUNet3D.pth"),
+                         help='path to a trained checkpoint (.pth)')
 
     parser.add_argument('--data_path', type=str, required=True,
                          help='directory of input .nii.gz volumes to run inference on')
@@ -229,11 +224,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_gpu', type=int, default=1, help='total gpu number')
 
     parser.add_argument('--cpu_threads', type=int, default=None,
-                         help='torch CPU thread count override. Left unset by default: an isolated '
-                              'benchmark of just the resample step suggested capping this helps, but '
-                              'a full end-to-end A/B sweep showed torch\'s own default (one thread per '
-                              'core) actually wins overall once Invertd\'s upsampling is included - set '
-                              'this explicitly only if you have profiled your own data/hardware.')
+                         help='torch CPU thread count override; leave unset for torch\'s own default')
     parser.add_argument('--amp', type=int, default=1,
                          help='use mixed precision (fp16 autocast) on CUDA. Defaults ON: this pipeline\'s '
                               'single large 3D sliding-window pass benefits from Tensor Cores; set to 0 '
